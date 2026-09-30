@@ -1,0 +1,76 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+enum EmailStatus {
+  SCHEDULED
+  PROCESSING
+  SENT
+  FAILED
+}
+
+model User {
+  id         String        @id @default(cuid())
+  googleId   String        @unique
+  name       String
+  email      String        @unique
+  avatarUrl  String?
+  createdAt  DateTime      @default(now())
+  updatedAt  DateTime      @updatedAt
+  campaigns  Campaign[]
+}
+
+model Sender {
+  id             String      @id @default(cuid())
+  email          String      @unique
+  active         Boolean     @default(true)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  emails         Email[]
+}
+
+model Campaign {
+  id          String   @id @default(cuid())
+  userId      String
+  subject     String
+  body        String
+  startTime   DateTime
+  delayMs     Int
+  hourlyLimit Int
+  senderId    String?
+  idempotencyKey String? @unique
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  emails      Email[]
+
+  @@index([userId, createdAt])
+}
+
+model Email {
+  id              String      @id @default(cuid())
+  campaignId      String
+  senderId        String
+  recipient       String
+  subject         String
+  body            String
+  scheduledAt     DateTime
+  sentAt          DateTime?
+  status          EmailStatus @default(SCHEDULED)
+  bullJobId       String      @unique
+  attempts        Int         @default(0)
+  lastError       String?
+  processingToken String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  campaign        Campaign    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  sender          Sender      @relation(fields: [senderId], references: [id])
+
+  @@index([status, scheduledAt])
+  @@index([campaignId, status])
+  @@index([senderId, scheduledAt])
+}
